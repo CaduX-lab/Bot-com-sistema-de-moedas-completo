@@ -1,4 +1,3 @@
-
 const {
 Client, GatewayIntentBits, EmbedBuilder,
 ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -6,7 +5,11 @@ PermissionsBitField, StringSelectMenuBuilder,
 ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 
-const db = require("quick.db");
+const { QuickDB } = require("quick.db");
+
+const db = new QuickDB({
+  filePath: "./database.json"
+});
 
 const client = new Client({
 intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
@@ -29,7 +32,7 @@ const DAILY = 12 * 60 * 60 * 1000;
 const PRECOS = {
 vip_basico: 250,
 vip_pro: 450,
-vip_premium: 750,
+vip_premiun: 750,
 "2x": 200,
 "4x": 400,
 cor: 300
@@ -174,7 +177,7 @@ return i.reply(`🎲 | Saiu **${resultado}** → Você perdeu`);
 }
 }
 
-// ⚡ BOOST (EPHEMERAL)
+// ⚡ BOOST
 if (i.commandName === "boost") {
 const boost = await db.get(`boost_${i.user.id}`);
 if (!boost) return i.reply({content:"❌ | Nenhum boost ativo", ephemeral:true});
@@ -183,10 +186,7 @@ const t = boost.expira - Date.now();
 const h = Math.floor(t/3600000);
 const m = Math.floor((t%3600000)/60000);
 
-return i.reply({
-content:`⚡ | Boost ${boost.tipo}\n⏳ ${h}h ${m}m restantes`,
-ephemeral:true
-});
+return i.reply({content:`⚡ | Boost ${boost.tipo}\n⏳ ${h}h ${m}m restantes`, ephemeral:true});
 }
 
 // 🎁 DAILY (ADM)
@@ -223,7 +223,7 @@ new StringSelectMenuBuilder()
 .addOptions([
 {label:"VIP Básico",value:"vip_basico",emoji:"💎"},
 {label:"VIP Pro",value:"vip_pro",emoji:"💠"},
-{label:"VIP Premium",value:"vip_premium",emoji:"👑"},
+{label:"VIP Premium",value:"vip_premiun",emoji:"👑"},
 {label:"Boost 2x XP",value:"2x",emoji:"⚡"},
 {label:"Boost 4x XP",value:"4x",emoji:"🔥"},
 {label:"Cor Personalizada",value:"cor",emoji:"🎨"}
@@ -279,7 +279,7 @@ let nome = "";
 // VIP / BOOST
 if (item === "vip_basico") { await i.member.roles.add(VIP_BASIC); nome="VIP Básico"; }
 if (item === "vip_pro") { await i.member.roles.add(VIP_PRO); nome="VIP Pro"; }
-if (item === "vip_premium") { await i.member.roles.add(VIP_PREMIUM); nome="VIP Premium"; }
+if (item === "vip_premiun") { await i.member.roles.add(VIP_PREMIUM); nome="VIP Premium"; }
 if (item === "2x") { await ativarBoost(i.member,"2x"); nome="Boost 2x XP"; }
 if (item === "4x") { await ativarBoost(i.member,"4x"); nome="Boost 4x XP"; }
 
@@ -332,7 +332,7 @@ return i.reply({content:`🎁 | Você ganhou ${r.gold} ST Gold!`,ephemeral:true}
 }
 
 if (id === "daily_chances")
-return i.reply({content:"**📊 Drop Rate**\n• **50%** comum (1-5)\n• **35%** incomum (6-10)\n• **13%** épico (11-25)\n• **2%** lendário (50)",ephemeral:true});
+return i.reply({content:"**📊 Drop Rate**\n• **50%** de ganhar um drop **comum** entre 1 a 5 ST golds\n• **35%** de chance ganhar um drop **Incomum** de 6 a 10 ST golds\n• **13%** de chance de ganhar um Drop **Épico** de 11 a 25 ST golds \n• **2%** de chance de ganhar um Drop **Lendário** de 50 ST golds",ephemeral:true});
 
 }
 
@@ -345,6 +345,7 @@ await i.deferReply({ephemeral:true});
 
 const hex = i.fields.getTextInputValue("hex");
 
+// VALIDAR HEX
 if (!/^#([0-9A-F]{3}){1,2}$/i.test(hex)) {
 return i.editReply({content:"❌ | Cor inválida! Use #ff0000"});
 }
