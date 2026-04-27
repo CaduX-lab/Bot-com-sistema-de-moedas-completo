@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "quick.db": "^9.1.7"
+    "quick.db": "7.1.3"
   }
 }

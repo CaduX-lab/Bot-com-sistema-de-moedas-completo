@@ -6,11 +6,7 @@ PermissionsBitField, StringSelectMenuBuilder,
 ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 
-const { QuickDB } = require("quick.db");
-
-const db = new QuickDB({
-  filePath: "./database.json"
-});
+const db = require("quick.db");
 
 const client = new Client({
 intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
