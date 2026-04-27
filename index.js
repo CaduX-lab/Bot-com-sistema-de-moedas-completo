@@ -6,10 +6,7 @@ ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 
 const QuickDB = require("quick.db");
-
-const db = new QuickDB({
-  filePath: "./database.json"
-});
+const db = new QuickDB();
 
 const client = new Client({
 intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
