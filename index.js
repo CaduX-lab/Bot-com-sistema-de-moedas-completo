@@ -1,4 +1,9 @@
 require('dotenv').config();
+const mongoose = require('mongoose');
+
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log("🟢 MongoDB conectado"))
+.catch(err => console.log("🔴 Erro MongoDB:", err));
 
 const {
 Client, GatewayIntentBits, EmbedBuilder,
@@ -7,15 +12,7 @@ PermissionsBitField, StringSelectMenuBuilder,
 ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 
-const {
-Client, GatewayIntentBits, EmbedBuilder,
-ActionRowBuilder, ButtonBuilder, ButtonStyle,
-PermissionsBitField, StringSelectMenuBuilder,
-ModalBuilder, TextInputBuilder, TextInputStyle
-} = require('discord.js');
-
-const { QuickDB } = require("quick.db");
-const db = new QuickDB();
+const User = require("./models/User");
 
 const client = new Client({
 intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
@@ -45,8 +42,12 @@ vpp: 750,
 cor: 300
 };
 
-// ECONOMIA
-const getGold = async (id) => await db.get(`gold_${id}`) || 0;
+// FUNÇÃO BASE
+const getUserData = async (id) => {
+let data = await User.findOne({ userId: id });
+if (!data) data = await User.create({ userId: id });
+return data;
+};
 
 // DAILY
 function reward() {
@@ -70,36 +71,35 @@ async function ativarBoost(member, tipo) {
 const role = tipo === "2x" ? ROLE_2X : ROLE_4X;
 await member.roles.add(role);
 
-await db.set(`boost_${member.id}`, {
+const data = await getUserData(member.id);
+data.boost = {
 tipo,
 expira: Date.now() + TEMPO
-});
+};
+await data.save();
 }
 
 // REMOVER BOOST
 setInterval(async () => {
-const data = await db.all();
 
-for (let d of data) {
-if (!d.id.startsWith("boost_")) continue;
+const users = await User.find({ "boost.expira": { $lte: Date.now() } });
 
-const userId = d.id.replace("boost_", "");
-const info = d.value;
-
-if (Date.now() >= info.expira) {
+for (let u of users) {
 try {
-const guild = client.guilds.cache.first();
-const member = await guild.members.fetch(userId);
+const guild = await client.guilds.fetch(process.env.GUILD_ID);
+const member = await guild.members.fetch(u.userId);
 
 if (!member) continue;
 
-if (info.tipo === "2x") await member.roles.remove(ROLE_2X);
+if (u.boost.tipo === "2x") await member.roles.remove(ROLE_2X);
 else await member.roles.remove(ROLE_4X);
 
-await db.delete(`boost_${userId}`);
+u.boost = null;
+await u.save();
+
 } catch {}
 }
-}
+
 }, 10000);
 
 // ================= INTERAÇÕES =================
@@ -111,8 +111,10 @@ if (!i.inGuild()) return;
 if (i.isChatInputCommand()) {
 
 // 💰 SALDO
-if (i.commandName === "saldo")
-return i.reply(`💰 | Você possui **${await getGold(i.user.id)} ST Gold**`);
+if (i.commandName === "saldo") {
+const data = await getUserData(i.user.id);
+return i.reply(`💰 | Você possui **${data.gold} ST Gold**`);
+}
 
 // 🛠️ ADD GOLD
 if (i.commandName === "addgold") {
@@ -122,7 +124,10 @@ return i.reply({content:"❌ | Sem permissão!",ephemeral:true});
 const user = i.options.getUser("usuario");
 const valor = i.options.getInteger("quantidade");
 
-await db.add(`gold_${user.id}`, valor);
+const data = await getUserData(user.id);
+data.gold += valor;
+await data.save();
+
 return i.reply({content:"✅ | Gold adicionado!",ephemeral:true});
 }
 
@@ -131,12 +136,17 @@ if (i.commandName === "pix") {
 const user = i.options.getUser("usuario");
 const valor = i.options.getInteger("valor");
 
-let gold = await getGold(i.user.id);
-if (gold < valor)
+const sender = await getUserData(i.user.id);
+const receiver = await getUserData(user.id);
+
+if (sender.gold < valor)
 return i.reply({content:"❌ | Gold insuficiente!",ephemeral:true});
 
-await db.sub(`gold_${i.user.id}`, valor);
-await db.add(`gold_${user.id}`, valor);
+sender.gold -= valor;
+receiver.gold += valor;
+
+await sender.save();
+await receiver.save();
 
 const embed = new EmbedBuilder()
 .setColor("#00ff88")
@@ -151,18 +161,20 @@ if (i.commandName === "cara_ou_coroa") {
 const escolha = i.options.getString("escolha");
 const valor = i.options.getInteger("valor");
 
-let gold = await getGold(i.user.id);
-if (gold < valor) return i.reply("❌ | Sem saldo");
+const data = await getUserData(i.user.id);
+
+if (data.gold < valor) return i.reply("❌ | Sem saldo");
 
 const win = caraOuCoroa(escolha);
 
 if (win) {
-await db.add(`gold_${i.user.id}`, valor);
+data.gold += valor;
 return i.reply(`🪙 | Você ganhou **${valor} ST Gold**`);
 } else {
-await db.sub(`gold_${i.user.id}`, valor);
+data.gold -= valor;
 return i.reply(`❌ | Você perdeu **${valor} ST Gold**`);
 }
+
 }
 
 // 🎲 DADOS
@@ -170,30 +182,34 @@ if (i.commandName === "dados") {
 const numero = i.options.getInteger("numero");
 const valor = i.options.getInteger("valor");
 
-let gold = await getGold(i.user.id);
-if (gold < valor) return i.reply("❌ | Sem saldo");
+const data = await getUserData(i.user.id);
+
+if (data.gold < valor) return i.reply("❌ | Sem saldo");
 
 const resultado = rolarDados();
 
 if (resultado === numero) {
-await db.add(`gold_${i.user.id}`, valor*2);
+data.gold += valor*2;
+await data.save();
 return i.reply(`🎲 | Saiu **${resultado}** → Você ganhou!`);
 } else {
-await db.sub(`gold_${i.user.id}`, valor);
+data.gold -= valor;
+await data.save();
 return i.reply(`🎲 | Saiu **${resultado}** → Você perdeu`);
 }
 }
 
 // ⚡ BOOST
 if (i.commandName === "boost") {
-const boost = await db.get(`boost_${i.user.id}`);
-if (!boost) return i.reply("❌ | Nenhum boost ativo");
+const data = await getUserData(i.user.id);
 
-const t = boost.expira - Date.now();
+if (!data.boost) return i.reply({content:"❌ | Nenhum boost ativo",ephemeral:true});
+
+const t = data.boost.expira - Date.now();
 const h = Math.floor(t/3600000);
 const m = Math.floor((t%3600000)/60000);
 
-return i.reply(`⚡ | Boost ${boost.tipo}\n⏳ ${h}h ${m}m restantes`);
+return i.reply({content:`⚡ | Boost ${data.boost.tipo}\n⏳ ${h}h ${m}m restantes`,ephemeral:true});
 }
 
 // 🎁 DAILY (ADM)
@@ -228,12 +244,12 @@ new StringSelectMenuBuilder()
 .setCustomId("menu_loja")
 .setPlaceholder("Escolha um produto...")
 .addOptions([
-{label:"VIP Básico",value:"vb",emoji:"💎"},
-{label:"VIP Pro",value:"vp",emoji:"💠"},
-{label:"VIP Premium",value:"vpp",emoji:"👑"},
-{label:"Boost 2x XP",value:"2x",emoji:"⚡"},
-{label:"Boost 4x XP",value:"4x",emoji:"🔥"},
-{label:"Cor Personalizada",value:"cor",emoji:"🎨"}
+{label:"🛍️ VIP Básico",value:"vb"},
+{label:"🛍️ VIP Pro",value:"vp"},
+{label:"🛍️ VIP Premium",value:"vpp"},
+{label:"🛍️ Boost 2x XP",value:"2x"},
+{label:"🛍️ Boost 4x XP",value:"4x"},
+{label:"🛍️ Cor Personalizada",value:"cor"}
 ])
 );
 
@@ -274,12 +290,14 @@ if (id.startsWith("confirmar_")) {
 
 const item = id.replace("confirmar_","");
 const preco = PRECOS[item];
-let gold = await getGold(user);
 
-if (gold < preco)
+const data = await getUserData(user);
+
+if (data.gold < preco)
 return i.update({content:"❌ | Sem gold",components:[]});
 
-await db.sub(`gold_${user}`, preco);
+data.gold -= preco;
+await data.save();
 
 let nome = "";
 
@@ -321,10 +339,10 @@ return i.update({embeds:[embed],content:"",components:[]});
 // DAILY
 if (id === "daily_resgatar") {
 
-const last = await db.get(`daily_${user}`);
+const data = await getUserData(user);
 
-if (last && Date.now() - last < DAILY) {
-const t = DAILY - (Date.now() - last);
+if (data.daily && Date.now() - data.daily < DAILY) {
+const t = DAILY - (Date.now() - data.daily);
 const h = Math.floor(t/3600000);
 const m = Math.floor((t%3600000)/60000);
 
@@ -332,14 +350,17 @@ return i.reply({content:`❌ | Volte em ${h}h ${m}m`,ephemeral:true});
 }
 
 const r = reward();
-await db.add(`gold_${user}`, r.gold);
-await db.set(`daily_${user}`, Date.now());
+
+data.gold += r.gold;
+data.daily = Date.now();
+
+await data.save();
 
 return i.reply({content:`🎁 | Você ganhou ${r.gold} ST Gold!`,ephemeral:true});
 }
 
 if (id === "daily_chances")
-return i.reply({content:"**📊 Drop Rate**\n・**50%** de chance de ganhar um Drop **Comum**, entre 1 a 5 ST Golds\n・30% de chance de ganhar um Drop **Incomum**, entre 6 a 10 ST Golds\n・18% de chance de ganhar um Drop **Epico**, de 11 a 25 ST Golds\n・2% de chance de ganhar um Drop **Lendario**, de 50 ST Golds",ephemeral:true});
+return i.reply({content:"**📊 Drop Rate**\n・**50%** de chance de ganhar um Drop **Comum**, entre 1 a 5 ST Golds\n・35% de chance de ganhar um Drop **Incomum**, entre 6 a 10 ST Golds\n・13% de chance de ganhar um Drop **Epico**, de 11 a 25 ST Golds\n・2% de chance de ganhar um Drop **Lendario**, de 50 ST Golds",ephemeral:true});
 
 }
 
