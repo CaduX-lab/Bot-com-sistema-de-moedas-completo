@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const {
 Client, GatewayIntentBits, EmbedBuilder,
 ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -5,7 +7,14 @@ PermissionsBitField, StringSelectMenuBuilder,
 ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 
-const QuickDB = require("quick.db");
+const {
+Client, GatewayIntentBits, EmbedBuilder,
+ActionRowBuilder, ButtonBuilder, ButtonStyle,
+PermissionsBitField, StringSelectMenuBuilder,
+ModalBuilder, TextInputBuilder, TextInputStyle
+} = require('discord.js');
+
+const { QuickDB } = require("quick.db");
 const db = new QuickDB();
 
 const client = new Client({
@@ -13,6 +22,7 @@ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
 // CONFIG
+const TOKEN = process.env.TOKEN;
 const ADMINS = ["1479965799614775572"];
 
 const ROLE_2X = "1495730502060085349";
@@ -27,9 +37,9 @@ const DAILY = 12 * 60 * 60 * 1000;
 
 // PREÇOS
 const PRECOS = {
-vip_basico: 250,
-vip_pro: 450,
-vip_premiun: 750,
+vb: 250,
+vp: 450,
+vpp: 750,
 "2x": 200,
 "4x": 400,
 cor: 300
@@ -177,13 +187,13 @@ return i.reply(`🎲 | Saiu **${resultado}** → Você perdeu`);
 // ⚡ BOOST
 if (i.commandName === "boost") {
 const boost = await db.get(`boost_${i.user.id}`);
-if (!boost) return i.reply({content:"❌ | Nenhum boost ativo", ephemeral:true});
+if (!boost) return i.reply("❌ | Nenhum boost ativo");
 
 const t = boost.expira - Date.now();
 const h = Math.floor(t/3600000);
 const m = Math.floor((t%3600000)/60000);
 
-return i.reply({content:`⚡ | Boost ${boost.tipo}\n⏳ ${h}h ${m}m restantes`, ephemeral:true});
+return i.reply(`⚡ | Boost ${boost.tipo}\n⏳ ${h}h ${m}m restantes`);
 }
 
 // 🎁 DAILY (ADM)
@@ -218,9 +228,9 @@ new StringSelectMenuBuilder()
 .setCustomId("menu_loja")
 .setPlaceholder("Escolha um produto...")
 .addOptions([
-{label:"VIP Básico",value:"vip_basico",emoji:"💎"},
-{label:"VIP Pro",value:"vip_pro",emoji:"💠"},
-{label:"VIP Premium",value:"vip_premiun",emoji:"👑"},
+{label:"VIP Básico",value:"vb",emoji:"💎"},
+{label:"VIP Pro",value:"vp",emoji:"💠"},
+{label:"VIP Premium",value:"vpp",emoji:"👑"},
 {label:"Boost 2x XP",value:"2x",emoji:"⚡"},
 {label:"Boost 4x XP",value:"4x",emoji:"🔥"},
 {label:"Cor Personalizada",value:"cor",emoji:"🎨"}
@@ -274,9 +284,9 @@ await db.sub(`gold_${user}`, preco);
 let nome = "";
 
 // VIP / BOOST
-if (item === "vip_basico") { await i.member.roles.add(VIP_BASIC); nome="VIP Básico"; }
-if (item === "vip_pro") { await i.member.roles.add(VIP_PRO); nome="VIP Pro"; }
-if (item === "vip_premiun") { await i.member.roles.add(VIP_PREMIUM); nome="VIP Premium"; }
+if (item === "vb") { await i.member.roles.add(VIP_BASIC); nome="VIP Básico"; }
+if (item === "vp") { await i.member.roles.add(VIP_PRO); nome="VIP Pro"; }
+if (item === "vpp") { await i.member.roles.add(VIP_PREMIUM); nome="VIP Premium"; }
 if (item === "2x") { await ativarBoost(i.member,"2x"); nome="Boost 2x XP"; }
 if (item === "4x") { await ativarBoost(i.member,"4x"); nome="Boost 4x XP"; }
 
@@ -329,7 +339,7 @@ return i.reply({content:`🎁 | Você ganhou ${r.gold} ST Gold!`,ephemeral:true}
 }
 
 if (id === "daily_chances")
-return i.reply({content:"**📊 Drop Rate**\n• **50%** de ganhar um drop **comum** entre 1 a 5 ST golds\n• **35%** de chance ganhar um drop **Incomum** de 6 a 10 ST golds\n• **13%** de chance de ganhar um Drop **Épico** de 11 a 25 ST golds \n• **2%** de chance de ganhar um Drop **Lendário** de 50 ST golds",ephemeral:true});
+return i.reply({content:"**📊 Drop Rate**\n・**50%** de chance de ganhar um Drop **Comum**, entre 1 a 5 ST Golds\n・30% de chance de ganhar um Drop **Incomum**, entre 6 a 10 ST Golds\n・18% de chance de ganhar um Drop **Epico**, de 11 a 25 ST Golds\n・2% de chance de ganhar um Drop **Lendario**, de 50 ST Golds",ephemeral:true});
 
 }
 
@@ -372,4 +382,4 @@ return i.editReply({content:"❌ | Erro! Verifique permissões do bot."});
 });
 
 client.once("ready",()=>console.log("🔥 BOT ONLINE"));
-client.login(process.env.TOKEN);
+client.login(TOKEN);
